@@ -11,6 +11,7 @@ pub struct Database {
     pub http_response: Vec<(Label, Vec<http::Signature>)>,
 }
 
+#[cfg(feature = "parse")]
 impl Default for Database {
     fn default() -> Self {
         include_str!("../p0f/p0f.fp")
@@ -23,6 +24,7 @@ impl Default for Database {
 mod tests {
     use super::*;
 
+    #[cfg(feature = "parse")]
     #[test]
     fn test_default_database() {
         let _ = pretty_env_logger::try_init();

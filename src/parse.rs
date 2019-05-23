@@ -88,7 +88,7 @@ impl FromStr for Database {
                             if let Some((label, values)) = tcp_request.last_mut() {
                                 let sig = value.parse()?;
 
-                                trace!("`{}` sig for tcp request : {:#?}", label, sig);
+                                trace!("sig for `{}` tcp request: {}", label, sig);
 
                                 values.push(sig);
                             } else {
@@ -99,7 +99,7 @@ impl FromStr for Database {
                             if let Some((label, values)) = tcp_response.last_mut() {
                                 let sig = value.parse()?;
 
-                                trace!("`{}` sig for tcp response : {:#?}", label, sig);
+                                trace!("sig for `{}` tcp response: {}", label, sig);
 
                                 values.push(sig);
                             } else {
@@ -110,7 +110,7 @@ impl FromStr for Database {
                             if let Some((label, values)) = http_request.last_mut() {
                                 let sig = value.parse()?;
 
-                                trace!("`{}` sig for http request : {:#?}", label, sig);
+                                trace!("sig for `{}` http request: {}", label, sig);
 
                                 values.push(sig);
                             } else {
@@ -121,7 +121,7 @@ impl FromStr for Database {
                             if let Some((label, values)) = http_response.last_mut() {
                                 let sig = value.parse()?;
 
-                                trace!("`{}` sig for http response : {:#?}", label, sig);
+                                trace!("sig for `{}` http response: {}", label, sig);
 
                                 values.push(sig);
                             } else {
@@ -179,10 +179,14 @@ macro_rules! impl_from_str {
 }
 
 impl_from_str!(Label, parse_label);
+impl_from_str!(Type, parse_type);
 impl_from_str!(TcpSignature, parse_tcp_signature);
+impl_from_str!(IpVersion, parse_ip_version);
 impl_from_str!(TTL, parse_ttl);
+impl_from_str!(WindowSize, parse_window_size);
 impl_from_str!(TcpOption, parse_tcp_option);
 impl_from_str!(Quirk, parse_quirk);
+impl_from_str!(PayloadSize, parse_payload_size);
 impl_from_str!(HttpSignature, parse_http_signature);
 impl_from_str!(HttpHeader, parse_http_header);
 
@@ -221,10 +225,7 @@ named!(parse_ua_os<CompleteStr, Vec<(String, Option<String>)>>, do_parse!(
 named!(
     parse_label<CompleteStr, Label>,
     do_parse!(
-        ty: alt!(
-            tag!("s") => { |_| Type::Specified } |
-            tag!("g") => { |_| Type::Generic }
-        ) >>
+        ty: parse_type >>
         tag!(":") >>
         class: alt!(
             tag!("!") => { |_| None } |
@@ -248,15 +249,16 @@ named!(
     )
 );
 
+named!(parse_type<CompleteStr, Type>, alt!(
+    tag!("s") => { |_| Type::Specified } |
+    tag!("g") => { |_| Type::Generic }
+));
+
 #[rustfmt::skip]
 named!(
     parse_tcp_signature<CompleteStr, TcpSignature>,
     do_parse!(
-        version: alt!(
-            tag!("4") => { |_| IpVersion::V4 } |
-            tag!("6") => { |_| IpVersion::V6 } |
-            tag!("*") => { |_| IpVersion::Any }
-        ) >>
+        version: parse_ip_version >>
         tag!(":") >>
         ittl: parse_ttl >>
         tag!(":") >>
@@ -267,12 +269,7 @@ named!(
             map_res!(digit, |s: CompleteStr| s.parse()) => { |n| Some(n) }
         ) >>
         tag!(":") >>
-        wsize: alt_complete!(
-            tag!("*") => { |_| None } |
-            map_res!(preceded!(tag!("mss*"), digit), |s: CompleteStr| s.parse()) => { |n| Some(WindowSize::MSS(n)) } |
-            map_res!(preceded!(tag!("mtu*"), digit), |s: CompleteStr| s.parse()) => { |n| Some(WindowSize::MTU(n)) } |
-            map_res!(digit, |s: CompleteStr| s.parse())                          => { |n| Some(WindowSize::Value(n)) }
-        ) >>
+        wsize: parse_window_size >>
         tag!(",") >>
         scale: alt!(
             tag!("*")                                   => { |_| None } |
@@ -283,16 +280,12 @@ named!(
         tag!(":") >>
         quirks: separated_list!(tag!(","), parse_quirk) >>
         tag!(":") >>
-        pclass: alt!(
-            tag!("0") => { |_| PayloadSize::Zero } |
-            tag!("+") => { |_| PayloadSize::NonZero } |
-            tag!("*") => { |_| PayloadSize::Any }
-        ) >>
+        pclass: parse_payload_size >>
         (
             TcpSignature {
                 version,
                 ittl,
-                olen: if olen == 0 { None } else { Some(olen) },
+                olen,
                 mss,
                 wsize,
                 scale,
@@ -304,6 +297,12 @@ named!(
     )
 );
 
+named!(parse_ip_version<CompleteStr, IpVersion>, alt!(
+    tag!("4") => { |_| IpVersion::V4 } |
+    tag!("6") => { |_| IpVersion::V6 } |
+    tag!("*") => { |_| IpVersion::Any }
+));
+
 named!(parse_ttl<CompleteStr, TTL>, alt_complete!(
     terminated!(map_res!(digit, |s: CompleteStr| s.parse()), tag!("-")) => { |ttl| TTL::Bad(ttl) } |
     terminated!(map_res!(digit, |s: CompleteStr| s.parse()), tag!("+?")) => { |ttl| TTL::Guess(ttl) } |
@@ -313,6 +312,13 @@ named!(parse_ttl<CompleteStr, TTL>, alt_complete!(
         map_res!(digit, |s: CompleteStr| s.parse())
     ) => { |(ttl, distance)| TTL::Distance(ttl, distance) } |
     map_res!(digit, |s: CompleteStr| s.parse()) => { |ttl| TTL::Value(ttl) }
+));
+
+named!(parse_window_size<CompleteStr, WindowSize>, alt_complete!(
+    tag!("*")                                                            => { |_| WindowSize::Any } |
+    map_res!(preceded!(tag!("mss*"), digit), |s: CompleteStr| s.parse()) => { |n| WindowSize::MSS(n) } |
+    map_res!(preceded!(tag!("mtu*"), digit), |s: CompleteStr| s.parse()) => { |n| WindowSize::MTU(n) } |
+    map_res!(digit, |s: CompleteStr| s.parse())                          => { |n| WindowSize::Value(n) }
 ));
 
 named!(parse_tcp_option<CompleteStr, TcpOption>, alt_complete!(
@@ -346,12 +352,14 @@ named!(parse_quirk<CompleteStr, Quirk>, alt_complete!(
     tag!("bad")     => { |_| Quirk::Bad }
 ));
 
+named!(parse_payload_size<CompleteStr, PayloadSize>, alt!(
+    tag!("0") => { |_| PayloadSize::Zero } |
+    tag!("+") => { |_| PayloadSize::NonZero } |
+    tag!("*") => { |_| PayloadSize::Any }
+));
+
 named!(parse_http_signature<CompleteStr, HttpSignature>, do_parse!(
-    version: alt!(
-        tag!("0") => { |_| HttpVersion::V10 } |
-        tag!("1") => { |_| HttpVersion::V11 } |
-        tag!("*") => { |_| HttpVersion::Any }
-    ) >>
+    version: parse_http_version >>
     tag!(":") >>
     horder: separated_nonempty_list!(tag!(","), parse_http_header) >>
     tag!(":") >>
@@ -366,6 +374,12 @@ named!(parse_http_signature<CompleteStr, HttpSignature>, do_parse!(
             expsw: expsw.to_string(),
         }
     )
+));
+
+named!(parse_http_version<CompleteStr, HttpVersion>, alt!(
+    tag!("0") => { |_| HttpVersion::V10 } |
+    tag!("1") => { |_| HttpVersion::V11 } |
+    tag!("*") => { |_| HttpVersion::Any }
 ));
 
 named!(parse_http_header<CompleteStr, HttpHeader>, do_parse!(
@@ -438,9 +452,9 @@ mod tests {
                 TcpSignature {
                     version: IpVersion::Any,
                     ittl: TTL::Value(64),
-                    olen: None,
+                    olen: 0,
                     mss: None,
-                    wsize: Some(WindowSize::MSS(20)),
+                    wsize: WindowSize::MSS(20),
                     scale: Some(10),
                     olayout: vec![MSS, SOK, TS, NOP, WS],
                     quirks: vec![DF, DFWithID],
@@ -452,9 +466,9 @@ mod tests {
                 TcpSignature {
                     version: IpVersion::Any,
                     ittl: TTL::Value(64),
-                    olen: None,
+                    olen: 0,
                     mss: None,
-                    wsize: Some(WindowSize::Value(16384)),
+                    wsize: WindowSize::Value(16384),
                     scale: Some(0),
                     olayout: vec![MSS],
                     quirks: vec![],
@@ -466,9 +480,9 @@ mod tests {
                 TcpSignature {
                     version: IpVersion::V4,
                     ittl: TTL::Value(128),
-                    olen: None,
+                    olen: 0,
                     mss: Some(1460),
-                    wsize: Some(WindowSize::MTU(2)),
+                    wsize: WindowSize::MTU(2),
                     scale: Some(0),
                     olayout: vec![MSS, NOP, WS],
                     quirks: vec![],
@@ -480,9 +494,9 @@ mod tests {
                 TcpSignature {
                     version: IpVersion::Any,
                     ittl: TTL::Bad(64),
-                    olen: None,
+                    olen: 0,
                     mss: Some(265),
-                    wsize: Some(WindowSize::Value(512)),
+                    wsize: WindowSize::Value(512),
                     scale: Some(0),
                     olayout: vec![MSS, SOK, TS],
                     quirks: vec![AckNumNonZero],
@@ -547,6 +561,7 @@ mod tests {
     fn test_tcp_signature() {
         for (s, sig) in TCP_SIGNATURES.iter() {
             assert_eq!(&s.parse::<TcpSignature>().unwrap(), sig);
+            assert_eq!(&sig.to_string(), s);
         }
     }
 
@@ -554,6 +569,7 @@ mod tests {
     fn test_ttl() {
         for (s, ttl) in TTLS.iter() {
             assert_eq!(&s.parse::<TTL>().unwrap(), ttl);
+            assert_eq!(&ttl.to_string(), s);
         }
     }
 
@@ -561,6 +577,7 @@ mod tests {
     fn test_http_signature() {
         for (s, sig) in HTTP_SIGNATURES.iter() {
             assert_eq!(&s.parse::<HttpSignature>().unwrap(), sig);
+            assert_eq!(&sig.to_string(), s);
         }
     }
 
@@ -568,6 +585,7 @@ mod tests {
     fn test_http_header() {
         for (s, h) in HTTP_HEADERS.iter() {
             assert_eq!(&s.parse::<HttpHeader>().unwrap(), h);
+            assert_eq!(&h.to_string(), s);
         }
     }
 }

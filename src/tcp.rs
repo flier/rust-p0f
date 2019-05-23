@@ -4,11 +4,11 @@ pub struct Signature {
     /// initial TTL used by the OS.
     pub ittl: TTL,
     /// length of IPv4 options or IPv6 extension headers.
-    pub olen: Option<u8>,
+    pub olen: u8,
     /// maximum segment size, if specified in TCP options.
     pub mss: Option<u32>,
     /// window size.
-    pub wsize: Option<WindowSize>,
+    pub wsize: WindowSize,
     /// window scaling factor, if specified in TCP options.
     pub scale: Option<u8>,
     /// layout and ordering of TCP options, if any.
@@ -39,6 +39,7 @@ pub enum WindowSize {
     MSS(u8),
     MTU(u8),
     Value(u32),
+    Any,
 }
 
 #[derive(Clone, Debug, PartialEq)]

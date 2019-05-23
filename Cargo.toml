@@ -4,12 +4,17 @@ version = "0.1.0"
 authors = ["Flier Lu <flier.lu@gmail.com>"]
 edition = "2018"
 
+[features]
+default = ["parse", "display"]
+parse = ["display", "nom"]
+display = []
+
 [dependencies]
 log = "0.4"
 failure = "0.1"
 lazy_static = "1.3"
-derive_more = "0.14"
-nom = "4.2"
+
+nom = { version = "4.2", optional = true }
 
 [dev-dependencies]
 pretty_env_logger = "0.3"
