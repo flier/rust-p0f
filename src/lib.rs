@@ -7,6 +7,8 @@ pub mod tcp;
 
 #[cfg(feature = "display")]
 mod display;
+#[cfg(feature = "packet")]
+mod packet;
 #[cfg(feature = "parse")]
 mod parse;
 

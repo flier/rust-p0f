@@ -271,7 +271,7 @@ named!(
         tag!(":") >>
         wsize: parse_window_size >>
         tag!(",") >>
-        scale: alt!(
+        wscale: alt!(
             tag!("*")                                   => { |_| None } |
             map_res!(digit, |s: CompleteStr| s.parse()) => { |n| Some(n) }
         ) >>
@@ -288,7 +288,7 @@ named!(
                 olen,
                 mss,
                 wsize,
-                scale,
+                wscale,
                 olayout,
                 quirks,
                 pclass,
@@ -318,6 +318,7 @@ named!(parse_window_size<CompleteStr, WindowSize>, alt_complete!(
     tag!("*")                                                            => { |_| WindowSize::Any } |
     map_res!(preceded!(tag!("mss*"), digit), |s: CompleteStr| s.parse()) => { |n| WindowSize::MSS(n) } |
     map_res!(preceded!(tag!("mtu*"), digit), |s: CompleteStr| s.parse()) => { |n| WindowSize::MTU(n) } |
+    map_res!(preceded!(tag!("%"), digit), |s: CompleteStr| s.parse())    => { |n| WindowSize::Mod(n) } |
     map_res!(digit, |s: CompleteStr| s.parse())                          => { |n| WindowSize::Value(n) }
 ));
 
@@ -334,22 +335,22 @@ named!(parse_tcp_option<CompleteStr, TcpOption>, alt_complete!(
 
 named!(parse_quirk<CompleteStr, Quirk>, alt_complete!(
     tag!("df")      => { |_| Quirk::DF } |
-    tag!("id+")     => { |_| Quirk::DFWithID } |
-    tag!("id-")     => { |_| Quirk::DFWithoutID } |
+    tag!("id+")     => { |_| Quirk::NonZeroID } |
+    tag!("id-")     => { |_| Quirk::ZeroID } |
     tag!("ecn")     => { |_| Quirk::ECN } |
-    tag!("0+")      => { |_| Quirk::NotZero } |
+    tag!("0+")      => { |_| Quirk::MustBeZero } |
     tag!("flow")    => { |_| Quirk::FlowID } |
     tag!("seq-")    => { |_| Quirk::SeqNumZero } |
     tag!("ack+")    => { |_| Quirk::AckNumNonZero } |
     tag!("ack-")    => { |_| Quirk::AckNumZero } |
-    tag!("uptr+")   => { |_| Quirk::URGPtr } |
-    tag!("urgf+")   => { |_| Quirk::URGFlag } |
-    tag!("pushf+")  => { |_| Quirk::PushFlag } |
+    tag!("uptr+")   => { |_| Quirk::NonZeroURG } |
+    tag!("urgf+")   => { |_| Quirk::URG } |
+    tag!("pushf+")  => { |_| Quirk::PUSH } |
     tag!("ts1-")    => { |_| Quirk::OwnTimestampZero } |
-    tag!("ts2+")    => { |_| Quirk::PeerTimestamp } |
+    tag!("ts2+")    => { |_| Quirk::PeerTimestampNonZero } |
     tag!("opt+")    => { |_| Quirk::TrailinigNonZero } |
     tag!("exws")    => { |_| Quirk::ExcessiveWindowScaling } |
-    tag!("bad")     => { |_| Quirk::Bad }
+    tag!("bad")     => { |_| Quirk::OptBad }
 ));
 
 named!(parse_payload_size<CompleteStr, PayloadSize>, alt!(
@@ -455,9 +456,9 @@ mod tests {
                     olen: 0,
                     mss: None,
                     wsize: WindowSize::MSS(20),
-                    scale: Some(10),
+                    wscale: Some(10),
                     olayout: vec![MSS, SOK, TS, NOP, WS],
-                    quirks: vec![DF, DFWithID],
+                    quirks: vec![DF, NonZeroID],
                     pclass: PayloadSize::Zero,
                 }
             ),
@@ -469,7 +470,7 @@ mod tests {
                     olen: 0,
                     mss: None,
                     wsize: WindowSize::Value(16384),
-                    scale: Some(0),
+                    wscale: Some(0),
                     olayout: vec![MSS],
                     quirks: vec![],
                     pclass: PayloadSize::Zero,
@@ -483,21 +484,21 @@ mod tests {
                     olen: 0,
                     mss: Some(1460),
                     wsize: WindowSize::MTU(2),
-                    scale: Some(0),
+                    wscale: Some(0),
                     olayout: vec![MSS, NOP, WS],
                     quirks: vec![],
                     pclass: PayloadSize::Zero,
                 }
             ),
             (
-                "*:64-:0:265:512,0:mss,sok,ts:ack+:0",
+                "*:64-:0:265:%512,0:mss,sok,ts:ack+:0",
                 TcpSignature {
                     version: IpVersion::Any,
                     ittl: TTL::Bad(64),
                     olen: 0,
                     mss: Some(265),
-                    wsize: WindowSize::Value(512),
-                    scale: Some(0),
+                    wsize: WindowSize::Mod(512),
+                    wscale: Some(0),
                     olayout: vec![MSS, SOK, TS],
                     quirks: vec![AckNumNonZero],
                     pclass: PayloadSize::Zero,

@@ -41,7 +41,7 @@ mod tcp {
 
             write!(f, ":{},", self.wsize)?;
 
-            if let Some(scale) = self.scale {
+            if let Some(scale) = self.wscale {
                 write!(f, "{}", scale)?;
             } else {
                 f.write_str("*")?;
@@ -101,7 +101,8 @@ mod tcp {
             match self {
                 MSS(n) => write!(f, "mss*{}", n),
                 MTU(n) => write!(f, "mtu*{}", n),
-                Value(mss) => write!(f, "{}", mss),
+                Value(n) => write!(f, "{}", n),
+                Mod(n) => write!(f, "%{}", n),
                 Any => f.write_str("*"),
             }
         }
@@ -130,22 +131,22 @@ mod tcp {
 
             match self {
                 DF => f.write_str("df"),
-                DFWithID => f.write_str("id+"),
-                DFWithoutID => f.write_str("id-"),
+                NonZeroID => f.write_str("id+"),
+                ZeroID => f.write_str("id-"),
                 ECN => f.write_str("ecn"),
-                NotZero => f.write_str("0+"),
+                MustBeZero => f.write_str("0+"),
                 FlowID => f.write_str("flow"),
                 SeqNumZero => f.write_str("seq-"),
                 AckNumNonZero => f.write_str("ack+"),
                 AckNumZero => f.write_str("ack-"),
-                URGPtr => f.write_str("uptr+"),
-                URGFlag => f.write_str("urgf+"),
-                PushFlag => f.write_str("pushf+"),
+                NonZeroURG => f.write_str("uptr+"),
+                URG => f.write_str("urgf+"),
+                PUSH => f.write_str("pushf+"),
                 OwnTimestampZero => f.write_str("ts1-"),
-                PeerTimestamp => f.write_str("ts2+"),
+                PeerTimestampNonZero => f.write_str("ts2+"),
                 TrailinigNonZero => f.write_str("opt+"),
                 ExcessiveWindowScaling => f.write_str("exws"),
-                Bad => f.write_str("bad"),
+                OptBad => f.write_str("bad"),
             }
         }
     }

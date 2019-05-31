@@ -6,11 +6,11 @@ pub struct Signature {
     /// length of IPv4 options or IPv6 extension headers.
     pub olen: u8,
     /// maximum segment size, if specified in TCP options.
-    pub mss: Option<u32>,
+    pub mss: Option<u16>,
     /// window size.
     pub wsize: WindowSize,
     /// window scaling factor, if specified in TCP options.
-    pub scale: Option<u8>,
+    pub wscale: Option<u8>,
     /// layout and ordering of TCP options, if any.
     pub olayout: Vec<TcpOption>,
     /// properties and quirks observed in IP or TCP headers.
@@ -38,7 +38,8 @@ pub enum TTL {
 pub enum WindowSize {
     MSS(u8),
     MTU(u8),
-    Value(u32),
+    Value(u16),
+    Mod(u16),
     Any,
 }
 
@@ -67,13 +68,13 @@ pub enum Quirk {
     /// df     - "don't fragment" set (probably PMTUD); ignored for IPv6
     DF,
     /// id+    - DF set but IPID non-zero; ignored for IPv6
-    DFWithID,
+    NonZeroID,
     /// id-    - DF not set but IPID is zero; ignored for IPv6
-    DFWithoutID,
+    ZeroID,
     /// ecn    - explicit congestion notification support
     ECN,
     /// 0+     - "must be zero" field not zero; ignored for IPv6
-    NotZero,
+    MustBeZero,
     /// flow   - non-zero IPv6 flow ID; ignored for IPv4
     FlowID,
     /// seq-   - sequence number is zero
@@ -83,21 +84,21 @@ pub enum Quirk {
     /// ack-   - ACK number is zero, but ACK flag set
     AckNumZero,
     /// uptr+  - URG pointer is non-zero, but URG flag not set
-    URGPtr,
+    NonZeroURG,
     /// urgf+  - URG flag used
-    URGFlag,
+    URG,
     /// pushf+ - PUSH flag used
-    PushFlag,
+    PUSH,
     /// ts1-   - own timestamp specified as zero
     OwnTimestampZero,
     /// ts2+   - non-zero peer timestamp on initial SYN
-    PeerTimestamp,
+    PeerTimestampNonZero,
     /// opt+   - trailing non-zero data in options segment
     TrailinigNonZero,
     /// exws   - excessive window scaling factor (> 14)
     ExcessiveWindowScaling,
     /// bad    - malformed TCP options
-    Bad,
+    OptBad,
 }
 
 #[derive(Clone, Debug, PartialEq)]
